@@ -24,7 +24,7 @@ jobs:
       - name: Node.js kurulumu
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Java 17 kurulumu
         uses: actions/setup-java@v4
