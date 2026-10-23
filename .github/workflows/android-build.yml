@@ -1,0 +1,72 @@
+name: Android APK Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: "Sürüm adı (örn. 1.0.0)"
+        required: false
+        default: "1.0.0"
+      version_code:
+        description: "Sürüm kodu (tam sayı)"
+        required: false
+        default: "1"
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js kurulumu
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Java 17 kurulumu
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Android SDK kurulumu
+        uses: android-actions/setup-android@v3
+
+      - name: Bağımlılıkları yükle
+        run: npm install --no-audit --no-fund
+
+      - name: Web uygulamasını derle (Next.js static export -> out/)
+        run: npm run build
+
+      - name: Android projesini oluştur (yoksa)
+        run: |
+          if [ ! -d android ]; then
+            npx cap add android
+          fi
+
+      - name: Web çıktısını Android'e senkronla
+        run: npx cap sync android
+
+      - name: İkon ve sürüm ayarları
+        run: |
+          ./scripts/android-setup.sh
+          GRADLE=android/app/build.gradle
+          sed -i "s/versionCode [0-9]*/versionCode ${{ inputs.version_code }}/" "$GRADLE"
+          sed -i "s/versionName \"[^\"]*\"/versionName \"${{ inputs.version_name }}\"/" "$GRADLE"
+
+      - name: Debug APK derle
+        working-directory: android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: APK'yı yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: idleforest-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
